@@ -177,5 +177,5 @@ def api_classes():
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    print("🌱 Starting FloraScan server at http://localhost:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    print("🌱 Starting FloraScan server at http://localhost:5500")
+    app.run(host="0.0.0.0", port=5500, debug=True)
