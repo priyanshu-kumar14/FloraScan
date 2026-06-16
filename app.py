@@ -46,12 +46,10 @@ DEFAULT_SOLUTION = {
 }
 
 
-def _normalize(key):
+def _clean_alnum(key):
     if not isinstance(key, str):
         return ""
-    k = key.strip().lower().replace(" ", "_").replace("-", "_").replace(".", "")
-    k = k.replace("___", "_")
-    return "_".join(part for part in k.split("_") if part)
+    return "".join(c for c in key.lower() if c.isalnum())
 
 
 def _load_solutions(csv_path):
@@ -72,9 +70,6 @@ def _load_solutions(csv_path):
                 "prevention": row.get("prevention", "").strip(),
             }
             solutions[key] = entry
-            norm = _normalize(key)
-            if norm and norm not in solutions:
-                solutions[norm] = entry
     return solutions
 
 
@@ -84,13 +79,19 @@ disease_solutions = _load_solutions(CSV_PATH)
 def get_solution(class_name):
     if class_name in disease_solutions:
         return disease_solutions[class_name]
-    norm = _normalize(class_name)
-    if norm in disease_solutions:
-        return disease_solutions[norm]
-    # Partial match fallback
+    
+    target_clean = _clean_alnum(class_name)
+    # 1. Check exact alphanumeric matches
     for k, v in disease_solutions.items():
-        if norm and norm in _normalize(k):
+        if _clean_alnum(k) == target_clean:
             return v
+            
+    # 2. Check partial matches
+    for k, v in disease_solutions.items():
+        k_clean = _clean_alnum(k)
+        if target_clean and (target_clean in k_clean or k_clean in target_clean):
+            return v
+            
     return DEFAULT_SOLUTION
 
 
@@ -177,5 +178,5 @@ def api_classes():
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    print("🌱 Starting FloraScan server at http://localhost:5500")
-    app.run(host="0.0.0.0", port=5500, debug=True)
+    print("🌱 Starting FloraScan server at http://localhost:5501")
+    app.run(host="0.0.0.0", port=5501, debug=True)

@@ -9,11 +9,17 @@ import os
 import csv
 import traceback
 
+# Configuration & Absolute paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "plant_disease_model.h5")
+CLASSES_PATH = os.path.join(BASE_DIR, "classes.json")
+CSV_PATH = os.path.join(BASE_DIR, "disease_solution.csv")
+
 # Load model
-model = tf.keras.models.load_model("plant_disease_model.h5")
+model = tf.keras.models.load_model(MODEL_PATH)
 
 # Load class names
-with open("classes.json") as f:
+with open(CLASSES_PATH) as f:
     class_indices = json.load(f)
 
 class_names = list(class_indices.keys())
@@ -27,17 +33,13 @@ DEFAULT_SOLUTION = {
 }
 
 
-def normalize_class_name(key):
+def clean_class_name(key):
     if not isinstance(key, str):
         return ''
-    key_norm = key.strip().lower()
-    key_norm = key_norm.replace(' ', '_').replace('-', '_')
-    key_norm = key_norm.replace('.', '')
-    key_norm = key_norm.replace('___', '_')
-    return '_'.join(part for part in key_norm.split('_') if part)
+    return ''.join(c for c in key.lower() if c.isalnum())
 
 
-def load_disease_solutions(csv_path='disease_solution.csv'):
+def load_disease_solutions(csv_path):
     solutions = {}
     if not os.path.exists(csv_path):
         print(f"[Warning] disease solution file not found: {csv_path}. Using defaults.")
@@ -50,7 +52,6 @@ def load_disease_solutions(csv_path='disease_solution.csv'):
             if not key:
                 continue
             key_raw = key.strip()
-            norm = normalize_class_name(key_raw)
             solutions[key_raw] = {
                 'common_name': row.get('common_name', '').strip(),
                 'cause': row.get('cause', '').strip(),
@@ -58,48 +59,35 @@ def load_disease_solutions(csv_path='disease_solution.csv'):
                 'treatment': row.get('treatment', '').strip(),
                 'prevention': row.get('prevention', '').strip(),
             }
-            if norm and norm not in solutions:
-                solutions[norm] = solutions[key_raw]
 
     print(f"Loaded {len(solutions)} disease solutions from {csv_path}")
     return solutions
 
 
-disease_solutions = load_disease_solutions('disease_solution.csv')
+disease_solutions = load_disease_solutions(CSV_PATH)
 
 
 def get_solution_for_class(class_name):
-    norm_key = normalize_class_name(class_name)
-
-    # Debug trace once (can remove later)
     if not disease_solutions:
         print("[Warning] disease_solutions map is empty (check CSV path/file)")
 
     if class_name in disease_solutions:
         return disease_solutions[class_name]
 
-    if norm_key in disease_solutions:
-        return disease_solutions[norm_key]
+    target_clean = clean_class_name(class_name)
+    # 1. Exact alphanumeric match
+    for k, v in disease_solutions.items():
+        if clean_class_name(k) == target_clean:
+            return v
 
-    # Try alternate delimiters: _ -> ___ and vice versa
-    alt1 = class_name.replace('___', '_')
-    alt2 = class_name.replace('_', '___')
-    for alt in (alt1, alt2):
-        if alt in disease_solutions:
-            return disease_solutions[alt]
-        alt_norm = normalize_class_name(alt)
-        if alt_norm in disease_solutions:
-            return disease_solutions[alt_norm]
+    # 2. Partial alphanumeric match
+    for k, v in disease_solutions.items():
+        k_clean = clean_class_name(k)
+        if target_clean and (target_clean in k_clean or k_clean in target_clean):
+            return v
 
-    # fallback to partial-match that includes normalized class name fragments
-    for k in disease_solutions:
-        if not isinstance(k, str):
-            continue
-        if norm_key and norm_key in normalize_class_name(k):
-            return disease_solutions[k]
-
-    # final fallback: return default but show candidate info
-    print(f"[Info] no disease solution match for '{class_name}' (norm '{norm_key}').")
+    # final fallback: return default
+    print(f"[Info] no disease solution match for '{class_name}' (clean '{target_clean}').")
     return DEFAULT_SOLUTION
 
 
